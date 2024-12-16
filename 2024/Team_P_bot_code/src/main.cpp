@@ -1,118 +1,178 @@
-/*----------------------------------------------------------------------------*/
-/*                                                                            */
-/*    Module:       main.cpp                                                  */
-/*    Author:       17475                                                     */
-/*    Created:      11/17/2024, 2:33:34 PM                                    */
-/*    Description:  V5 project                                                */
-/*                                                                            */
-/*----------------------------------------------------------------------------*/
+#include <algorithm>
 
-#include "vex.h"
-#include "hardware.h"
+#include "v5.h"
+#include "v5_vcs.h"
 
-using namespace vex;
+/**
+ * All VEX ports defined here for easy reassignment if needed.
+ */
+struct Port {
+    // Drive motor ports
+    static const int DRIVE_FRONT_LEFT = 4 - 1;
+    static const int DRIVE_FRONT_RIGHT = 5 - 1;
+    static const int DRIVE_BACK_LEFT = 6 - 1;
+    static const int DRIVE_BACK_RIGHT = 7 - 1;
 
-// A global instance of competition
-competition Competition;
+    // Intake motor port
+    static const int INTAKE = 8 - 1;
 
-// define your global instances of motors and other devices here
+    // Lift motor ports
+    static const int LIFT_FRONT = 9 - 1;
+    static const int LIFT_BACK = 10 - 1;
+};
 
-/*---------------------------------------------------------------------------*/
-/*                          Pre-Autonomous Functions                         */
-/*                                                                           */
-/*  You may want to perform some actions before the competition starts.      */
-/*  Do them in the following function.  You must return from this function   */
-/*  or the autonomous and usercontrol tasks will not be started.  This       */
-/*  function is only called once after the V5 has been powered on and        */
-/*  not every time that the robot is disabled.                               */
-/*---------------------------------------------------------------------------*/
+/**
+ * Time (in msec) to wait between frames.
+ */
+const int WAIT_TIME = 20;
 
-void pre_auton(void) {
+/**
+ * Controls the drive subsystem by instantaneously adjusting the speed of the
+ * drive motors.
+ *
+ * By having this as a separate function, we can call the same *tested* code in
+ * both teleop and autonomous, and both will do the same thing to the drive.
+ *
+ * @param frontBackSpeed The speed in the front/back direction, from -100 (full
+ *                       driving forward or backward is not desired.
+ * @param turnSpeed      The angular velocity of the robot turning about its own
+ *                       center, from -100 (full speed counterclockwise) to +100
+ *                       (full speed clockwise.)  Use 0 if turning is not
+ *                       desired.
+ */
+void drive(double frontBackSpeed, double turnSpeed) {
 
-  // All activities that occur before the competition starts
-  // Example: clearing encoders, setting servo positions, ...
+    // The drive motors (2 motors on each side of the drive base.)
+    static vex::motor frontLeft(Port::DRIVE_FRONT_LEFT);
+    static vex::motor frontRight(Port::DRIVE_FRONT_RIGHT);
+    static vex::motor backLeft(Port::DRIVE_BACK_LEFT);
+    static vex::motor backRight(Port::DRIVE_BACK_RIGHT);
+
+    static vex::motor_group left(frontLeft, backLeft);
+    static vex::motor_group right(frontRight, backRight);
+
+    double leftMotorSpeed = frontBackSpeed + turnSpeed;
+    double rightMotorSpeed = frontBackSpeed - turnSpeed;
+    leftMotorSpeed = std::max(-100.0, std::min(leftMotorSpeed, 100.0));
+    rightMotorSpeed = std::max(-100.0, std::min(rightMotorSpeed, 100.0));
+
+    left.spin(vex::fwd, leftMotorSpeed, vex::velocityUnits::pct);
+    right.spin(vex::fwd, rightMotorSpeed, vex::velocityUnits::pct);
 }
 
-/*---------------------------------------------------------------------------*/
-/*                                                                           */
-/*                              Autonomous Task                              */
-/*                                                                           */
-/*  This task is used to control your robot during the autonomous phase of   */
-/*  a VEX Competition.                                                       */
-/*                                                                           */
-/*  You must modify the code to add your own robot specific commands here.   */
-/*---------------------------------------------------------------------------*/
+/**
+ * Controls the intake/uptake subsystem.  We can call this both during teleop
+ * and autonomous.
+ *
+ * @param intakeOrOuttake Makes the pivot ramp intake or eject the rings.
+ *                        Positive numbers trigger intake system, zero stops the
+ *                        system, and negative numbers trigger outtake system.
+ */
+void intake(int intakeOrOuttake) {
+    // The intake motor, used to collect rings.
+    static vex::motor intake(Port::INTAKE);
 
-void autonomous(void) {
-  // ..........................................................................
-  // Insert autonomous user code here.
-  // ..........................................................................
+    // When testing if Intake and Outake are reversed change the code for it to be
+    // reversed.
+    intake.setVelocity(100.00, vex::percentUnits::pct);
+    if (intakeOrOuttake > 0) {
+        // Intaking.
+        intake.spin(vex::directionType::fwd);
+    } else if (intakeOrOuttake < 0) {
+        // Outtaking
+        intake.spin(vex::directionType::rev);
+    } else {
+        // No movement
+        intake.stop(vex::brakeType::brake);
+    }
 }
 
-/*---------------------------------------------------------------------------*/
-/*                                                                           */
-/*                              User Control Task                            */
-/*                                                                           */
-/*  This task is used to control your robot during the user control phase of */
-/*  a VEX Competition.                                                       */
-/*                                                                           */
-/*  You must modify the code to add your own robot specific commands here.   */
-/*---------------------------------------------------------------------------*/
+/**
+ * Controls the lift subsystem. We can call this during teleop and autonomus.
+ *
+ * @param upOrDown Makes the Lift raise and lower pivot ramp. If the sign of the
+ *             number is a positive, it triggers the lift to go up. Zero stops
+ *             the system, and if the sign of the number is negative it triggers
+ *             lowering system.
+ */
+void lift(int upOrDown) {
+    static vex::motor frontLiftRight(Port::LIFT_FRONT);
+    static vex::motor backLiftLeft(Port::LIFT_BACK);
+    static vex::motor_group updownLift(frontLiftRight, backLiftLeft);
 
-void usercontrol(void) {
-  // User control code here, inside the loop
-  while (1) {
-    // This is the main execution loop for the user control program.
-    // Each time through the loop your program should update motor + servo
-    // values based on feedback from the joysticks.
-
-    double controllerFrontBackPosition = Controller.Axis4.position();
-    double controllerLeftRightPosition = Controller.Axis3.position();
-    robotDrive(controllerFrontBackPosition, controllerLeftRightPosition);
-
-    bool outtake = Controller.ButtonL2.pressing();
-    bool intake = Controller.ButtonR2.pressing();
-    int intakeOrOuttake = 0;
-    if (intake == true) {
-      intakeOrOuttake = 1;
-    } else if (outtake == true) {
-      intakeOrOuttake = -1;
+    updownLift.setVelocity(100.00, vex::percentUnits::pct);
+    if (upOrDown > 0) {
+        updownLift.spin(vex::directionType::fwd);
+    } else if (upOrDown < 0) {
+        updownLift.spin(vex::directionType::rev);
+    } else {
+        updownLift.stop(vex::brakeType::brake);
     }
+}
 
-    robotintake(intakeOrOuttake);
 
+/**
+ * Callback function used to control the robot during the autonomous phase of a
+ * VEX Competition.
+ */
+void autonomous() {
+    // Insert autonomous user code here.
+}
 
-    bool uplift = Controller.ButtonUp.pressing();
-    bool downlift = Controller.ButtonDown.pressing();
-    int lift = 0;
-    if (uplift == true) {
-      lift = 1;
-    } else if (downlift == true) {
-      lift = -1;
+/**
+ * Callback function used to control the robot during the user control phase of
+ * a VEX Competition.
+ */
+void usercontrol() {
+    vex::controller controller;
+    // User control code here, inside the loop
+    while (true) {
+        // This is the main execution loop for the user control program.
+        // Each time through the loop your program should update motor + servo
+        // values based on feedback from the joysticks.
+
+        double controllerFrontBackPosition = controller.Axis4.position();
+        double controllerLeftRightPosition = controller.Axis3.position();
+        drive(controllerFrontBackPosition, controllerLeftRightPosition);
+
+        bool outtakePress = controller.ButtonL2.pressing();
+        bool intakePress = controller.ButtonR2.pressing();
+        int intakeOrOuttake = 0;
+        if (intakePress) {
+            intakeOrOuttake = 1;
+        } else if (outtakePress) {
+            intakeOrOuttake = -1;
+        }
+
+        intake(intakeOrOuttake);
+
+        bool uplift = controller.ButtonUp.pressing();
+        bool downlift = controller.ButtonDown.pressing();
+        int liftUpOrDown = 0;
+        if (uplift) {
+            liftUpOrDown = 1;
+        } else if (downlift) {
+            liftUpOrDown = -1;
+        }
+
+        lift(liftUpOrDown);
+
+        wait(WAIT_TIME, vex::msec);
     }
-
-
-    robotlift(lift);
-
-
-    wait(20, msec); // Sleep the task for a short amount of time to
-                    // prevent wasted resources.
-  }
 }
 
 //
-// Main will set up the competition functions and callbacks.
+// Main will set up the competition and register callbacks.
 //
 int main() {
-  // Set up callbacks for autonomous and driver control periods.
-  Competition.autonomous(autonomous);
-  Competition.drivercontrol(usercontrol);
+    vex::competition competition;
 
-  // Run the pre-autonomous function.
-  pre_auton();
+    // Set up callbacks for autonomous and driver control periods.
+    competition.autonomous(autonomous);
+    competition.drivercontrol(usercontrol);
 
-  // Prevent main from exiting with an infinite loop.
-  while (true) {
-    wait(100, msec);
-  }
+    // Prevent main from exiting with an infinite loop.
+    while (true) {
+        wait(WAIT_TIME, vex::msec);
+    }
 }
