@@ -6,7 +6,7 @@
 enum ClawState {
     CLAW_OPEN,
     CLAW_CLOSE,
-    CLAW_NEUTRAL
+    CLAW_NEUTRAL,
 };
 
 // How quickly the claw closes during the initial calibration.
@@ -27,17 +27,18 @@ const double CLAW_CALIBRATION_CLOSURE_SPEED_PCT = 25.0;
 // allowed to run during pre_auton(), and calibrateClaw() necessarily runs the
 // clawMotor; therefore we have no choice but to call it at the beginning of
 // both teleop AND autonomous.
-void calibrateClaw(vex::motor& clawMotor,
-                   vex::bumper& clawBumper);
+void calibrateClaw(vex::motor& clawMotor, vex::bumper& clawBumper);
 
 // when the button is pressed the code thats moves the arm and claw keeps
 // repeating the same code until the claw reaches its fully open state. it then
 // does the reverse when the same button is pressed
-void moveArm(double armSpeedPercent,
-             ClawState clawState,
-             vex::motor& armMotorLeft,
-             vex::motor& armMotorRight,
-             vex::motor& clawMotor);
+void moveArm(
+    double armSpeedPercent,
+    ClawState clawState,
+    vex::motor& armMotorLeft,
+    vex::motor& armMotorRight,
+    vex::motor& clawMotor
+);
 //This controls the claw speed during teleop, different from the value used in
 //the claw motor spin function. That value affects the claw movement speed during
 //calibration.
@@ -54,6 +55,6 @@ const vex::brakeType ARM_BRAKE_TYPE = vex::brakeType::hold;
 
 //This constant is here to make the claw close beyond 0 degrees
 //in an attempt to increase the bite force of the bot. We're
-//making it a constant to modify the value easier in the long run. 
+//making it a constant to modify the value easier in the long run.
 const int CLAW_OVERBITE_ANGLE_DEGREES = 10;
 #endif // (#ifndef ARMSUBSYSTEM_H_IS_PRESENT)
